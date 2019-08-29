@@ -131,12 +131,14 @@ define(['konva'], function(Konva) {
           limitMin =
             options.segmentGroup.outMarker.getX() - options.segmentGroup.outMarker.getWidth();
           limitMax = handle.leftNeighbourX;
+          // TODO: Use Utils.clamp(val, min, max)
           pos.x = Math.max(limitMax, Math.min(limitMin, pos.x));
         }
         else {
           limitMin =
             options.segmentGroup.inMarker.getX() + options.segmentGroup.inMarker.getWidth();
           limitMax = handle.rightNeighbourX;
+          // TODO: Use Utils.clamp(val, min, max)
           pos.x = Math.max(limitMin, Math.min(limitMax, pos.x));
         }
 

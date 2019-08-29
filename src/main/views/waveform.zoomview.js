@@ -52,6 +52,7 @@ define([
 
     self._data = null;
     self._pixelLength = 0;
+    self._allowEventsTimeout = null;
 
     var initialZoomLevel = self._options.zoomLevels[peaks.zoom.getZoom()];
 
@@ -94,8 +95,39 @@ define([
 
     self._syncPlayhead(time);
 
+    self._stage.on('wheel', function(scrollData) {
+      var e = scrollData.evt;
+
+      e.preventDefault();
+      e.stopPropagation();
+      // console.table({
+      //   dX: e.deltaX,
+      //   dY: e.deltaY,
+      //   wdX: e.wheelDeltaX,
+      //   wdY: e.wheelDeltaY
+      // });
+      var diff = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY * -1;
+
+      var newFrameOffset = Utils.clamp(
+        Math.round(self._frameOffset + diff), 0, self._pixelLength - self._width
+      );
+
+      if (newFrameOffset !== self._frameOffset) {
+        if (self._stage.listening()) {
+          self._stage.listening(false);
+        }
+        if (self._allowEventsTimeout) {
+          clearTimeout(self._allowEventsTimeout);
+          self._allowEventsTimeout = null;
+        }
+        self._allowEventsTimeout = setTimeout(self._allowEvents.bind(self), 100);
+        self._peaks.emit('user_scroll.zoomview', newFrameOffset);
+      }
+    });
+
     self._mouseDragHandler = new MouseDragHandler(self._stage, {
       onMouseDown: function(mousePosX) {
+        self._stage.listening(false);
         this.initialFrameOffset = self._frameOffset;
         this.mouseDownX = mousePosX;
       },
@@ -117,6 +149,7 @@ define([
       onMouseUp: function(mousePosX) {
         // Set playhead position only on click release, when not dragging.
         if (!self._mouseDragHandler.isDragging()) {
+          self._stage.listening(true);
           var mouseDownX = Math.floor(this.mouseDownX);
 
           var pixelIndex = self._frameOffset + mouseDownX;
@@ -189,6 +222,13 @@ define([
     self._peaks.on('keyboard.shift_left', nudgeFrame.bind(self, -1, true));
     self._peaks.on('keyboard.shift_right', nudgeFrame.bind(self, 1, true));
   }
+
+  WaveformZoomView.prototype._allowEvents = function() {
+    this._stage.listening(true);
+    this._stage.draw();
+    clearTimeout(this._allowEventsTimeout);
+    this._allowEventsTimeout = null;
+  };
 
   WaveformZoomView.prototype.setWaveformData = function(waveformData) {
     this._originalWaveformData = waveformData;
@@ -388,7 +428,7 @@ define([
       upperLimit = this._pixelLength - this._width;
     }
 
-    frameOffset = Utils.clamp(frameOffset, 0, upperLimit);
+    frameOffset = Utils.clamp(Math.round(frameOffset), 0, upperLimit);
 
     this._frameOffset = frameOffset;
 
