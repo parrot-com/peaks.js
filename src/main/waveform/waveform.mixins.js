@@ -9,6 +9,39 @@
 define(['konva'], function(Konva) {
   'use strict';
 
+  function createSegmentRectangle(options) {
+    var rectHeight = options.height;
+
+    var segmentRect = new Konva.Rect({
+      x:      0,
+      y:      0,
+      width:  0,
+      height: rectHeight,
+      fill:   '#fff',
+      opacity: 0.5
+      // TODO: globalCompositeOperation
+      // globalCompositeOperation: 'color-dodge'
+    });
+
+    segmentRect.on('mouseenter', function(event) {
+      segmentRect.fill('#d9fcf7');
+      // segmentRect.opacity(1);
+      options.layer.draw();
+      options.onMouseEnter(options.segment);
+    });
+
+    segmentRect.on('mouseleave', function(event) {
+      // TODO: only do this when we're sure, the rect is
+      // being rendered, or else it will crash the app
+      segmentRect.fill('#fff');
+      segmentRect.opacity(0.5);
+      options.layer.draw();
+      options.onMouseLeave(options.segment);
+    });
+
+    return segmentRect;
+  }
+
   /**
    * Parameters for the {@link createSegmentMarker} function.
    *
@@ -33,16 +66,17 @@ define(['konva'], function(Konva) {
    */
 
   function createSegmentMarker(options) {
-    var handleHeight = 20;
-    var handleWidth  = handleHeight / 2;
-    var handleY      = (options.height / 2) - 10.5;
-    var handleX      = -(handleWidth / 2) + 0.5;
+    var handleHeight = options.height;
+    var handleWidth  = 3;
+    var handleY      = 0;
+    var handleX      = options.inMarker ? 0 : handleWidth * -1;
 
     var group = new Konva.Group({
       draggable: options.draggable,
       dragBoundFunc: function(pos) {
         var limit;
 
+        // implement own limits
         if (options.inMarker) {
           limit = options.segmentGroup.outMarker.getX() - options.segmentGroup.outMarker.getWidth();
 
@@ -65,13 +99,13 @@ define(['konva'], function(Konva) {
       }
     });
 
-    var xPosition = options.inMarker ? -24 : 24;
+    var xPosition = options.inMarker ? -12 : 12;
 
     var text = new Konva.Text({
       x:          xPosition,
       y:          (options.height / 2) - 5,
       text:       '',
-      fontSize:   10,
+      fontSize:   13,
       fontFamily: 'sans-serif',
       fill:       '#000',
       textAlign:  'center'
@@ -86,57 +120,77 @@ define(['konva'], function(Konva) {
       width:       handleWidth,
       height:      handleHeight,
       fill:        options.color,
-      stroke:      options.color,
-      strokeWidth: 1
-    });
+      draggable:   options.draggable,
+      dragBoundFunc: function(pos) {
+        // TODO: implement own limits
+        var limitMin;
+        var limitMax;
 
-    // Vertical Line
+        // implement own limits
+        if (options.inMarker) {
+          limitMin =
+            options.segmentGroup.outMarker.getX() - options.segmentGroup.outMarker.getWidth();
+          limitMax = handle.leftNeighbourX;
+          pos.x = Math.max(limitMax, Math.min(limitMin, pos.x));
+        }
+        else {
+          limitMin =
+            options.segmentGroup.inMarker.getX() + options.segmentGroup.inMarker.getWidth();
+          limitMax = handle.rightNeighbourX;
+          pos.x = Math.max(limitMin, Math.min(limitMax, pos.x));
+        }
 
-    var line = new Konva.Line({
-      x:           0,
-      y:           0,
-      points:      [0.5, 0, 0.5, options.height],
-      stroke:      options.color,
-      strokeWidth: 1
+        return {
+          x: pos.x,
+          y: this.getAbsolutePosition().y
+        };
+      }
     });
 
     // Events
 
     if (options.draggable && options.onDrag) {
-      group.on('dragmove', function(event) {
+      handle.on('dragmove', function(event) {
         options.onDrag(options.segmentGroup, options.segment);
       });
-      group.on('dragstart', function(event) {
+      handle.on('dragstart', function(event) {
+        var neighbourSegments = options.findSegmentNeighbours(options.segment);
+        var neighbour;
+
         if (options.inMarker) {
-          text.setX(xPosition - text.getWidth());
+          neighbour = neighbourSegments.left ? neighbourSegments.left.outMarker : undefined;
+
+          handle.leftNeighbourX = neighbour ? neighbour.getX() + neighbour.getWidth() : 0;
         }
-        text.show();
+        else {
+          neighbour = neighbourSegments.right ? neighbourSegments.right.inMarker : undefined;
+
+          handle.rightNeighbourX =
+            neighbour ? neighbour.getX() - neighbour.getWidth() : options.viewWidth;
+        }
         options.layer.draw();
       });
-      group.on('dragend', function(event) {
-        text.hide();
+      handle.on('dragend', function(event) {
         options.layer.draw();
       });
     }
 
     handle.on('mouseover touchstart', function(event) {
-      if (options.inMarker) {
-        text.setX(xPosition - text.getWidth());
-      }
-      text.show();
+      // change fill color, change cursor to we-resize
       options.layer.draw();
+      options.onMouseEnter(options.segment);
     });
 
     handle.on('mouseout touchend', function(event) {
-      text.hide();
       options.layer.draw();
+      options.onMouseLeave(options.segment);
     });
 
     group.add(text);
-    group.add(line);
     group.add(handle);
 
-    return group;
+    // return group;
+    return handle;
   }
 
   /**
@@ -175,7 +229,7 @@ define(['konva'], function(Konva) {
    * @property {Function} onDragStart
    * @property {Function} onDragMove Callback during mouse drag operations.
    * @property {Function} onDragEnd
-   * @property {Function} onMouseOver
+   * @property {Function} onMouseEnter
    * @property {Function} onMouseLeave
    */
 
@@ -339,6 +393,7 @@ define(['konva'], function(Konva) {
   // Public API
 
   return {
+    createSegmentRectangle: createSegmentRectangle,
     createSegmentMarker: createSegmentMarker,
     createPointMarker: createPointMarker,
     createSegmentLabel: createSegmentLabel

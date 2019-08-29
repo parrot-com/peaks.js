@@ -136,6 +136,7 @@ declare module 'peaks.js' {
 
   type SetSourceCallback = (error: Error) => any;
 
+  // TODO: Add more event types
   interface InstanceEvents {
     'peaks.ready': () => any;
     'points.add': (points: Point[]) => any;

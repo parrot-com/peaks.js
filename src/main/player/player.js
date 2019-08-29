@@ -204,15 +204,31 @@ define(['peaks/waveform/waveform.utils'], function(Utils) {
     // Start playing audio
     self._mediaElement.play();
 
-    // We need to use setInterval here as the timeupdate event doesn't fire
-    // often enough.
+    var intervalCheck = 100;
+    var endTimeWithInterval = (segment.endTime * 1000 - intervalCheck) / 1000;
+
     self._interval = setInterval(function() {
-      if (self.getCurrentTime() >= segment.endTime || self._mediaElement.paused) {
+      if (self.getCurrentTime() >= endTimeWithInterval) {
         clearTimeout(self._interval);
         self._interval = null;
-        self._mediaElement.pause();
+        setTimeout(function() {
+          self._mediaElement.pause();
+          console.log('audio stopped at: ' + self.getCurrentTime());
+        }, (segment.endTime - self.getCurrentTime()) * 1000);
+        // set it for shorter and then check if it's done, or run 3 parallel with offsets
       }
-    }, 30);
+    }, intervalCheck);
+    // We need to use setInterval here as the timeupdate event doesn't fire
+    // often enough.
+    // self._interval = setInterval(function() {
+    //   // console.log(self.getCurrentTime());
+    //   if (self.getCurrentTime() >= segment.endTime || self._mediaElement.paused) {
+    //     // console.log(self.getCurrentTime(), segment.endTime);
+    //     clearTimeout(self._interval);
+    //     self._interval = null;
+    //     self._mediaElement.pause();
+    //   }
+    // });
   };
 
   return Player;

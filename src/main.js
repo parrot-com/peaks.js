@@ -349,6 +349,7 @@ define('peaks', [
       instance._waveformData = waveformData;
 
       if (containers.overview) {
+        // TODO
         instance.views.createOverview(containers.overview);
       }
 
@@ -435,9 +436,10 @@ define('peaks', [
 
     Utils.extend(this.options, opts);
     Utils.extend(this.options, {
-      createSegmentMarker: mixins.createSegmentMarker,
-      createSegmentLabel:  mixins.createSegmentLabel,
-      createPointMarker:   mixins.createPointMarker
+      createSegmentRectangle: mixins.createSegmentRectangle,
+      createSegmentMarker:    mixins.createSegmentMarker,
+      createSegmentLabel:     mixins.createSegmentLabel,
+      createPointMarker:      mixins.createPointMarker
     });
 
     if (!Array.isArray(this.options.zoomLevels)) {

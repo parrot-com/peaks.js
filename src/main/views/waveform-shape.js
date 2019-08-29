@@ -50,6 +50,7 @@ define(['peaks/waveform/waveform.utils', 'konva'], function(Utils, Konva) {
    */
 
   function WaveformShape(options) {
+    // super
     Konva.Shape.call(this, {
       fill: options.color
     });
@@ -61,6 +62,7 @@ define(['peaks/waveform/waveform.utils', 'konva'], function(Utils, Konva) {
     this.sceneFunc(this._sceneFunc);
   }
 
+  // class extension
   WaveformShape.prototype = Object.create(Konva.Shape.prototype);
 
   WaveformShape.prototype.setAmplitudeScale = function(scale) {

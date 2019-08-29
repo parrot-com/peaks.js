@@ -183,6 +183,7 @@ define([
       self._updateWaveform(self._frameOffset + increment);
     }
 
+    // TODO add our own keyboard shortcuts
     self._peaks.on('keyboard.left', nudgeFrame.bind(self, -1, false));
     self._peaks.on('keyboard.right', nudgeFrame.bind(self, 1, false));
     self._peaks.on('keyboard.shift_left', nudgeFrame.bind(self, -1, true));
