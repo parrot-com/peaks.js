@@ -149,6 +149,7 @@ define([
       onMouseUp: function(mousePosX) {
         if (!self._stage.listening()) {
           self._stage.listening(true);
+          self._stage.draw();
         }
         // Set playhead position only on click release, when not dragging.
         if (!self._mouseDragHandler.isDragging()) {
