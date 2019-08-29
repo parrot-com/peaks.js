@@ -151,7 +151,7 @@ define(['konva'], function(Konva) {
 
     if (options.draggable && options.onDrag) {
       handle.on('dragmove', function(event) {
-        options.onDrag(options.segmentGroup, options.segment);
+        options.onDrag(options.segmentGroup, options.segment, options.inMarker);
       });
       handle.on('dragstart', function(event) {
         var neighbourSegments = options.findSegmentNeighbours(options.segment);
@@ -159,12 +159,10 @@ define(['konva'], function(Konva) {
 
         if (options.inMarker) {
           neighbour = neighbourSegments.left ? neighbourSegments.left.outMarker : undefined;
-
           handle.leftNeighbourX = neighbour ? neighbour.getX() + neighbour.getWidth() : 0;
         }
         else {
           neighbour = neighbourSegments.right ? neighbourSegments.right.inMarker : undefined;
-
           handle.rightNeighbourX =
             neighbour ? neighbour.getX() - neighbour.getWidth() : options.viewWidth;
         }
