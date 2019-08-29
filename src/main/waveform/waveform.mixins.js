@@ -6,7 +6,12 @@
  * @module peaks/waveform/waveform.mixins
  */
 
-define(['konva'], function(Konva) {
+define([
+  'konva',
+  'peaks/waveform/waveform.utils'
+], function(
+  Konva,
+  Utils) {
   'use strict';
 
   function createSegmentRectangle(options) {
@@ -122,24 +127,21 @@ define(['konva'], function(Konva) {
       fill:        options.color,
       draggable:   options.draggable,
       dragBoundFunc: function(pos) {
-        // TODO: implement own limits
+        // TODO: fix limits
         var limitMin;
         var limitMax;
 
-        // implement own limits
         if (options.inMarker) {
           limitMin =
             options.segmentGroup.outMarker.getX() - options.segmentGroup.outMarker.getWidth();
           limitMax = handle.leftNeighbourX;
-          // TODO: Use Utils.clamp(val, min, max)
-          pos.x = Math.max(limitMax, Math.min(limitMin, pos.x));
+          pos.x = Utils.clamp(pos.x, limitMax, limitMin);
         }
         else {
           limitMin =
             options.segmentGroup.inMarker.getX() + options.segmentGroup.inMarker.getWidth();
           limitMax = handle.rightNeighbourX;
-          // TODO: Use Utils.clamp(val, min, max)
-          pos.x = Math.max(limitMin, Math.min(limitMax, pos.x));
+          pos.x = Utils.clamp(pos.x, limitMin, limitMax);
         }
 
         return {

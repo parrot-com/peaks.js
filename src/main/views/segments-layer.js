@@ -66,11 +66,13 @@ define([
 
       if (segment.isVisible(frameStartTime, frameEndTime)) {
         self._addSegmentGroup(segment);
+        console.log(self._segmentGroups);
         redraw = true;
       }
 
       if (redraw) {
-        self.updateSegments(frameStartTime, frameEndTime);
+        // self.updateSegments(frameStartTime, frameEndTime);
+        self._updateSegment(segment);
       }
     });
 
@@ -191,7 +193,6 @@ define([
     var editable = self._allowEditing && segment.editable;
 
     if (editable) {
-      // TODO: Segment markers
       segmentGroup.inMarker = this._peaks.options.createSegmentMarker({
         draggable:    editable,
         height:       this._view.getHeight(),

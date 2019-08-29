@@ -150,6 +150,12 @@ define([
         if (!self._stage.listening()) {
           self._stage.listening(true);
           self._stage.draw();
+          var frameStartTime = self.pixelsToTime(self._frameOffset);
+          var frameEndTime   = self.pixelsToTime(self._frameOffset + self._width);
+
+          self._peaks.emit(
+            'user_scroll.scrolled',
+            self._getVisibleSegments.bind(self)(frameStartTime, frameEndTime));
         }
         // Set playhead position only on click release, when not dragging.
         if (!self._mouseDragHandler.isDragging()) {
@@ -229,6 +235,14 @@ define([
   WaveformZoomView.prototype._allowEvents = function() {
     this._stage.listening(true);
     this._stage.draw();
+
+    var frameStartTime = this.pixelsToTime(this._frameOffset);
+    var frameEndTime   = this.pixelsToTime(this._frameOffset + this._width);
+
+    this._peaks.emit(
+      'user_scroll.scrolled',
+      this._getVisibleSegments.bind(this)(frameStartTime, frameEndTime));
+
     clearTimeout(this._allowEventsTimeout);
     this._allowEventsTimeout = null;
   };
@@ -260,6 +274,10 @@ define([
 
       this._updateWaveform(this._frameOffset);
     }
+  };
+
+  WaveformZoomView.prototype._getVisibleSegments = function(startTime, endTime) {
+    return this._peaks.segments.find(startTime, endTime);
   };
 
   /**
