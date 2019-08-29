@@ -62,6 +62,7 @@ define(['peaks/waveform/waveform.utils'], function(Utils) {
     });
 
     self._interval = null;
+    self._timeout = null;
   }
 
   /**
@@ -195,8 +196,7 @@ define(['peaks/waveform/waveform.utils'], function(Utils) {
       return;
     }
 
-    clearTimeout(self._interval);
-    self._interval = null;
+    self.cancelPrevPlaySegment();
 
     // Set audio time to segment start time
     self.seek(segment.startTime);
@@ -204,14 +204,14 @@ define(['peaks/waveform/waveform.utils'], function(Utils) {
     // Start playing audio
     self._mediaElement.play();
 
-    var intervalCheck = 100;
+    var intervalCheck = 10;
     var endTimeWithInterval = (segment.endTime * 1000 - intervalCheck) / 1000;
 
     self._interval = setInterval(function() {
       if (self.getCurrentTime() >= endTimeWithInterval) {
-        clearTimeout(self._interval);
+        clearInterval(self._interval);
         self._interval = null;
-        setTimeout(function() {
+        self._timeout = setTimeout(function() {
           self._mediaElement.pause();
           console.log('audio stopped at: ' + self.getCurrentTime());
         }, (segment.endTime - self.getCurrentTime()) * 1000);
@@ -229,6 +229,13 @@ define(['peaks/waveform/waveform.utils'], function(Utils) {
     //     self._mediaElement.pause();
     //   }
     // });
+  };
+
+  Player.prototype.cancelPrevPlaySegment = function() {
+    clearInterval(this._interval);
+    this._interval = null;
+    clearTimeout(this._timeout);
+    this._timeout = null;
   };
 
   return Player;

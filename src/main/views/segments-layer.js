@@ -290,6 +290,7 @@ define([
       segment.endTime = this._view.pixelsToTime(outOffset);
     }
 
+    segment.isInMarker = isInMarker;
     this._peaks.emit('segments.dragged', segment);
   };
 
