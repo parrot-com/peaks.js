@@ -267,12 +267,12 @@ define([
       var isStart = handle.isStart;
       var isMouseOver = false;
       var isSegmentMouseOver = false;
-      var activeRange = 50;
-      var distance = 100;
-      var maxHighlightRectOpacity = 0.4;
+      var activeRange = 100;
+      var distance = 200;
+      var maxHighlightRectOpacity = 0.6;
       var highlightRectOpacity = 0.1;
       var highlightRect = segmentGroup.highlightRect;
-      var doEffects = self._visibleSegmentsCount <= 15;
+      var doEffects = self._visibleSegmentsCount <= 30;
 
       var x = self._mouseX;
       var y = self._mouseY;
@@ -298,7 +298,7 @@ define([
           );
         }
         segmentGroup.isMouseOver = isSegmentMouseOver;
-        if (doEffects) {
+        if (highlightRectDistance < activeRange * 3 && doEffects) {
           highlightRectOpacity = maxHighlightRectOpacity -
             Math.min(
               1,
@@ -308,29 +308,29 @@ define([
 
         if (isStart) {
           isMouseOver = isSegmentMouseOver && x <= handleX && y <= handle.height();
-          if (doEffects) {
-          distance = isMouseOver ? 0 :
-            Utils.getDistance(
-              { x: x, y: y },
-              {
-                x: Math.min(x, handleX),
-                y: Math.min(y, handle.height())
-              }
-            );
+          if (isSegmentMouseOver && doEffects) {
+            distance = isMouseOver ? 0 :
+              Utils.getDistance(
+                { x: x, y: y },
+                {
+                  x: Math.min(x, handleX),
+                  y: Math.min(y, handle.height())
+                }
+              );
           }
         }
         else {
           handleX = highlightRect.x() + highlightRect.width() - handle.width();
           isMouseOver = isSegmentMouseOver && x >= handleX && y <= handle.height();
-          if (doEffects) {
-          distance = isMouseOver ? 0 :
-            Utils.getDistance(
-              { x: x, y: y },
-              {
-                x: Math.max(x, handleX),
-                y: Math.min(y, handle.height())
-              }
-            );
+          if (isSegmentMouseOver && doEffects) {
+            distance = isMouseOver ? 0 :
+              Utils.getDistance(
+                { x: x, y: y },
+                {
+                  x: Math.max(x, handleX),
+                  y: Math.min(y, handle.height())
+                }
+              );
           }
         }
       }
@@ -344,15 +344,28 @@ define([
       }
 
       highlightRect.opacity(
-        isSegmentMouseOver ? maxHighlightRectOpacity : highlightRectOpacity
+        isSegmentMouseOver ? maxHighlightRectOpacity - 0.25 : highlightRectOpacity
       );
       highlightRect.fill(fillColor);
-      handle.opacity(opacity);
-      handle.fill(isMouseOver ? handle.activeHandleColor : handle.restHandleColor);
+
+      if (
+        highlightRect.width() >
+        segmentGroup.startHandle.width() + segmentGroup.endHandle.width()
+      ) {
+        handle.visible(true);
+        handle.opacity(opacity);
+        handle.fill(isMouseOver ? handle.activeHandleColor : handle.restHandleColor);
+      }
+      else {
+        handle.visible(false);
+      }
 
       var labelGroup = isStart ? segmentGroup.startTimeLabel : segmentGroup.endTimeLabel;
 
-      labelGroup.visible(isMouseOver);
+      labelGroup.visible(
+        // or is Mouse down
+        highlightRect.width() > labelGroup.width() && isMouseOver
+      );
       if (isMouseOver) {
         labelGroup.update();
       }
