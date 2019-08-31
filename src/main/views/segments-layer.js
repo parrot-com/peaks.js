@@ -272,6 +272,7 @@ define([
       var maxHighlightRectOpacity = 0.4;
       var highlightRectOpacity = 0.1;
       var highlightRect = segmentGroup.highlightRect;
+      var doEffects = self._visibleSegmentsCount <= 15;
 
       var x = self._mouseX;
       var y = self._mouseY;
@@ -297,14 +298,17 @@ define([
           );
         }
         segmentGroup.isMouseOver = isSegmentMouseOver;
-        highlightRectOpacity = maxHighlightRectOpacity -
-          Math.min(
-            1,
-            highlightRectDistance / (activeRange * 3)
-          ) * (maxHighlightRectOpacity - highlightRectOpacity);
+        if (doEffects) {
+          highlightRectOpacity = maxHighlightRectOpacity -
+            Math.min(
+              1,
+              highlightRectDistance / (activeRange * 3)
+            ) * (maxHighlightRectOpacity - highlightRectOpacity);
+        }
 
         if (isStart) {
           isMouseOver = isSegmentMouseOver && x <= handleX && y <= handle.height();
+          if (doEffects) {
           distance = isMouseOver ? 0 :
             Utils.getDistance(
               { x: x, y: y },
@@ -313,10 +317,12 @@ define([
                 y: Math.min(y, handle.height())
               }
             );
+          }
         }
         else {
           handleX = highlightRect.x() + highlightRect.width() - handle.width();
           isMouseOver = isSegmentMouseOver && x >= handleX && y <= handle.height();
+          if (doEffects) {
           distance = isMouseOver ? 0 :
             Utils.getDistance(
               { x: x, y: y },
@@ -325,12 +331,17 @@ define([
                 y: Math.min(y, handle.height())
               }
             );
+          }
         }
       }
 
       var fillColor = segmentGroup.isMouseOver ? handle.activeHandleColor : handle.restHandleColor;
-      var opacity = segmentGroup && segmentGroup.isMouseOver ?
-        Math.max(0.2, 1 - Math.min(distance / activeRange)) : 0;
+      var opacity = isSegmentMouseOver ? 0.5 : 0;
+
+      if (doEffects) {
+        opacity = segmentGroup && segmentGroup.isMouseOver ?
+          Math.max(0.2, 1 - Math.min(distance / activeRange)) : 0;
+      }
 
       highlightRect.opacity(
         isSegmentMouseOver ? maxHighlightRectOpacity : highlightRectOpacity
@@ -538,6 +549,7 @@ define([
 
     var count = segments.length;
 
+    this._visibleSegmentsCount = count;
     segments.forEach(this._updateSegment.bind(this));
 
     // TODO: in the overview all segments are visible, so no need to check

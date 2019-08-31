@@ -177,9 +177,10 @@ define([
     // Events
 
     self._peaks.on('player_time_update', function(time) {
-      if (self._mouseDragHandler.isDragging()) {
-        return;
-      }
+      // TODO: Redo because of functionality
+      // if (self._mouseDragHandler.isDragging()) {
+      //   return;
+      // }
 
       self._syncPlayhead(time);
     });
