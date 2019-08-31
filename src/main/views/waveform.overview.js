@@ -70,6 +70,7 @@ define([
 
     self._createWaveform();
 
+    // This would consume waaaay too much memory
     // self._segmentsLayer = new SegmentsLayer(peaks, self, false);
     // self._segmentsLayer.addToStage(self._stage);
 
@@ -321,7 +322,7 @@ define([
     var frameEndTime   = this.pixelsToTime(this._width);
 
     this._pointsLayer.updatePoints(frameStartTime, frameEndTime);
-    this._segmentsLayer.updateSegments(frameStartTime, frameEndTime);
+    // this._segmentsLayer.updateSegments(frameStartTime, frameEndTime);
   };
 
   WaveformOverview.prototype.setWaveformColor = function(color) {
