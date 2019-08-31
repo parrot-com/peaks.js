@@ -60,6 +60,7 @@ define(['peaks/waveform/waveform.utils', 'konva'], function(Utils, Konva) {
     this._scale = 1.0;
 
     this.sceneFunc(this._sceneFunc);
+    this.listening(false);
   }
 
   // class extension

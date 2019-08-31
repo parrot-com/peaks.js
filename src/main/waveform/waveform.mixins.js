@@ -24,8 +24,6 @@ define([
       height: rectHeight,
       fill:   '#fff',
       opacity: 0.5
-      // TODO: globalCompositeOperation
-      // globalCompositeOperation: 'color-dodge'
     });
 
     segmentRect.on('mouseenter', function(event) {
@@ -76,48 +74,9 @@ define([
     var handleY      = 0;
     var handleX      = options.inMarker ? 0 : handleWidth * -1;
 
-    var group = new Konva.Group({
-      draggable: options.draggable,
-      dragBoundFunc: function(pos) {
-        var limit;
+    var group = new Konva.Group();
 
-        // implement own limits
-        if (options.inMarker) {
-          limit = options.segmentGroup.outMarker.getX() - options.segmentGroup.outMarker.getWidth();
-
-          if (pos.x > limit) {
-            pos.x = limit;
-          }
-        }
-        else {
-          limit = options.segmentGroup.inMarker.getX() + options.segmentGroup.inMarker.getWidth();
-
-          if (pos.x < limit) {
-            pos.x = limit;
-          }
-        }
-
-        return {
-          x: pos.x,
-          y: this.getAbsolutePosition().y
-        };
-      }
-    });
-
-    var xPosition = options.inMarker ? -12 : 12;
-
-    var text = new Konva.Text({
-      x:          xPosition,
-      y:          (options.height / 2) - 5,
-      text:       '',
-      fontSize:   13,
-      fontFamily: 'sans-serif',
-      fill:       '#000',
-      textAlign:  'center'
-    });
-
-    text.hide();
-    group.label = text;
+    var xPosition = options.inMarker ? 3 : 12;
 
     var handle = new Konva.Rect({
       x:           handleX,
@@ -188,11 +147,7 @@ define([
       options.onMouseLeave(options.segment);
     });
 
-    group.add(text);
-    group.add(handle);
-
-    // return group;
-    return handle;
+    return group;
   }
 
   /**

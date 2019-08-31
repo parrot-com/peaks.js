@@ -8,9 +8,10 @@
 
 define([
   'peaks/views/waveform-shape',
+  'peaks/views/segment-handle',
   'peaks/waveform/waveform.utils',
   'konva'
-  ], function(WaveformShape, Utils, Konva) {
+  ], function(WaveformShape, SegmentHandle, Utils, Konva) {
   'use strict';
 
   /**
@@ -30,10 +31,17 @@ define([
     this._view          = view;
     this._allowEditing  = allowEditing;
     this._segmentGroups = {};
+    this._handleSize    = 16;
     this._layer         = new Konva.Layer();
+    this._mouseX        = undefined;
+    this._mouseY        = undefined;
 
-    this._layer.globalCompositeOperation('darken');
+    this._mouseCapturingRect = new Konva.Rect({
+      x: 0,
+      y: 0
+    });
 
+    this._layer.add(this._mouseCapturingRect);
     this._registerEventHandlers();
   }
 
@@ -66,7 +74,6 @@ define([
 
       if (segment.isVisible(frameStartTime, frameEndTime)) {
         self._addSegmentGroup(segment);
-        console.log(self._segmentGroups);
         redraw = true;
       }
 
@@ -111,6 +118,39 @@ define([
       self._updateSegment(segment);
       self._layer.draw();
     });
+
+    this._layer.on('mousemove', function() {
+      self._updateVisibleSegments();
+    });
+
+    this._layer.on('mousedown', function() {
+      self._isMouseDown = true;
+      self._mouseStartX = self._mouseX;
+      self._updateVisibleSegments();
+    });
+
+    this._layer.on('mouseup', function() {
+      self._isMouseDown = false;
+      self._updateVisibleSegments();
+    });
+  };
+
+  SegmentsLayer.prototype._updateVisibleSegments = function() {
+    var self = this;
+    var pos = Utils.getRelativePointerPosition(self._layer);
+
+    self._mouseX = pos.x;
+    self._mouseY = pos.y;
+
+    var frameOffset = self._view.getFrameOffset();
+    var width = self._view.getWidth();
+
+    var frameStartTime = self._view.pixelsToTime(frameOffset);
+    var frameEndTime   = self._view.pixelsToTime(frameOffset + width);
+
+    self.updateSegments(frameStartTime, frameEndTime);
+
+    self._layer.draw();
   };
 
   /**
@@ -122,6 +162,200 @@ define([
    */
 
   SegmentsLayer.prototype._createSegmentGroup = function(segment) {
+    var self = this;
+
+    var segmentGroup = new Konva.Group();
+
+    segmentGroup.segment = segment;
+
+    // segmentGroup.handle = new SegmentHandle({
+    //   segmentGroup: segmentGroup,
+    //   height: self._view.getHeight(),
+    //   layer: self._layer,
+    //   restHandleColor: '#646D7A',
+    //   activeHandleColor: '#3675D4',
+    //   timeLabelBgColor: '#30B5EE',
+    //   onMouseEnter: self._onSegmentMouseEnter.bind(self),
+    //   onMouseLeave: self._onSegmentMouseLeave.bind(self)
+    // });
+
+    var highlightRect = new Konva.Rect({
+      x: 50,
+      y: 50,
+      fill: '#676C72',
+      width: 80,
+      height: 80,
+      opacity: 0.2
+    });
+
+    var handleOptions = {
+      layer: self._layer,
+      segmentGroup: segmentGroup,
+      handleSize: self._handleSize,
+      restHandleColor: '#313335',
+      activeHandleColor: '#78A9D7',
+      timeLabelBgColor: '#4099EC'
+    };
+
+    var timeLabelOptions = {
+      segmentGroup: segmentGroup,
+      labelHeight: self._handleSize,
+      timeLabelBgColor: '#4099EC'
+    };
+
+    segmentGroup.highlightRect = highlightRect;
+    segmentGroup.startHandle = self._createHandle(handleOptions, true);
+    segmentGroup.endHandle = self._createHandle(handleOptions);
+    segmentGroup.startTimeLabel = self._crateTimeLabel(timeLabelOptions, true);
+    segmentGroup.endTimeLabel = self._crateTimeLabel(timeLabelOptions);
+    segmentGroup.startHandle.checkCursorInRange();
+    segmentGroup.endHandle.checkCursorInRange();
+    // segmentGroup.add(segmentGroup.handle);
+    segmentGroup.add(segmentGroup.highlightRect);
+    segmentGroup.add(segmentGroup.startTimeLabel);
+    segmentGroup.add(segmentGroup.endTimeLabel);
+    segmentGroup.add(segmentGroup.startHandle);
+    segmentGroup.add(segmentGroup.endHandle);
+
+    return segmentGroup;
+  };
+
+  SegmentsLayer.prototype._crateTimeLabel = function(options, isStart) {
+    var segmentGroup = options.segmentGroup;
+    var labelGroup = new Konva.Group();
+    var labelHeight = options.labelHeight;
+    var timeLabelBgRect = new Konva.Rect({
+      height: labelHeight,
+      fill: options.timeLabelBgColor,
+      listening: false
+    });
+
+    labelGroup.timeLabelBgRect = timeLabelBgRect;
+    labelGroup.isStart = isStart;
+    labelGroup.update = function() {
+      var highlightRect = segmentGroup.highlightRect;
+
+      labelGroup.timeLabelBgRect.width(60);
+      labelGroup.x(
+        labelGroup.isStart ?
+        highlightRect.x() + segmentGroup.startHandle.width() :
+        highlightRect.x() + highlightRect.width() - segmentGroup.endHandle.width() -
+        labelGroup.timeLabelBgRect.width()
+      );
+    };
+
+    labelGroup.add(timeLabelBgRect);
+    return labelGroup;
+  };
+
+  SegmentsLayer.prototype._createHandle = function(options, isStart) {
+    var self = this;
+    var segmentGroup = options.segmentGroup;
+    var handleSize = options.handleSize;
+    var handle = new Konva.Rect({
+      width: handleSize,
+      height: handleSize,
+      fill: options.restHandleColor,
+      listening: false
+    });
+
+    handle.restHandleColor = options.restHandleColor;
+    handle.activeHandleColor = options.activeHandleColor;
+    handle.isStart = isStart;
+
+    handle.checkCursorInRange = function() {
+      var isStart = handle.isStart;
+      var isMouseOver = false;
+      var isSegmentMouseOver = false;
+      var activeRange = 50;
+      var distance = 100;
+      var maxHighlightRectOpacity = 0.4;
+      var highlightRectOpacity = 0.1;
+      var highlightRect = segmentGroup.highlightRect;
+
+      var x = self._mouseX;
+      var y = self._mouseY;
+
+      if (x && y) {
+        var handleX = handle.width() + highlightRect.x();
+        var highlightRectDistance = x < highlightRect.x() ?
+          highlightRect.x() - x :
+          x - (highlightRect.x() + highlightRect.width());
+
+        isSegmentMouseOver = x >= highlightRect.x() &&
+          x <= highlightRect.x() + highlightRect.width();
+
+        if (self._isMouseDown && isSegmentMouseOver) {
+          highlightRect.x(x);
+          console.log(x);
+          // highlightRect.width()
+        }
+        if (isSegmentMouseOver !== segmentGroup.isMouseOver) {
+          self._peaks.emit(
+            'segments.' + (isSegmentMouseOver ? 'mouseenter' : 'mouseleave'),
+            segmentGroup.segment
+          );
+        }
+        segmentGroup.isMouseOver = isSegmentMouseOver;
+        highlightRectOpacity = maxHighlightRectOpacity -
+          Math.min(
+            1,
+            highlightRectDistance / (activeRange * 3)
+          ) * (maxHighlightRectOpacity - highlightRectOpacity);
+
+        if (isStart) {
+          isMouseOver = isSegmentMouseOver && x <= handleX && y <= handle.height();
+          distance = isMouseOver ? 0 :
+            Utils.getDistance(
+              { x: x, y: y },
+              {
+                x: Math.min(x, handleX),
+                y: Math.min(y, handle.height())
+              }
+            );
+        }
+        else {
+          handleX = highlightRect.x() + highlightRect.width() - handle.width();
+          isMouseOver = isSegmentMouseOver && x >= handleX && y <= handle.height();
+          distance = isMouseOver ? 0 :
+            Utils.getDistance(
+              { x: x, y: y },
+              {
+                x: Math.max(x, handleX),
+                y: Math.min(y, handle.height())
+              }
+            );
+        }
+      }
+
+      var fillColor = segmentGroup.isMouseOver ? handle.activeHandleColor : handle.restHandleColor;
+      var opacity = segmentGroup && segmentGroup.isMouseOver ?
+        Math.max(0.2, 1 - Math.min(distance / activeRange)) : 0;
+
+      highlightRect.opacity(
+        isSegmentMouseOver ? maxHighlightRectOpacity : highlightRectOpacity
+      );
+      highlightRect.fill(fillColor);
+      handle.opacity(opacity);
+      handle.fill(isMouseOver ? handle.activeHandleColor : handle.restHandleColor);
+
+      var labelGroup = isStart ? segmentGroup.startTimeLabel : segmentGroup.endTimeLabel;
+
+      labelGroup.visible(isMouseOver);
+      if (isMouseOver) {
+        labelGroup.update();
+      }
+      return isMouseOver;
+    };
+
+    return handle;
+  };
+
+  SegmentsLayer.prototype._onHandleMouseEnter = function(event) {
+    console.log(event);
+  };
+
+  SegmentsLayer.prototype._createSegmentGroupOld = function(segment) {
     var self = this;
 
     var segmentGroup = new Konva.Group();
@@ -231,19 +465,11 @@ define([
     return segmentGroup;
   };
 
-  SegmentsLayer.prototype._onSegmentHandleMouseEnter = function(segment) {
-    this._peaks.emit('segments.handle.mouseenter', segment);
-  };
-
-  SegmentsLayer.prototype._onSegmentHandleMouseLeave = function(segment) {
-    this._peaks.emit('segments.handle.mouseleave', segment);
-  };
-
-  SegmentsLayer.prototype._onRectWindowMouseEnter = function(segment) {
+  SegmentsLayer.prototype._onSegmentMouseEnter = function(segment) {
     this._peaks.emit('segments.mouseenter', segment);
   };
 
-  SegmentsLayer.prototype._onRectWindowMouseLeave = function(segment) {
+  SegmentsLayer.prototype._onSegmentMouseLeave = function(segment) {
     this._peaks.emit('segments.mouseleave', segment);
   };
 
@@ -305,6 +531,8 @@ define([
    */
 
   SegmentsLayer.prototype.updateSegments = function(startTime, endTime) {
+    this._mouseCapturingRect.width(this._layer.getWidth());
+    this._mouseCapturingRect.height(this._layer.getHeight());
     // Update segments in visible time range.
     var segments = this._peaks.segments.find(startTime, endTime);
 
@@ -326,38 +554,45 @@ define([
    */
 
   SegmentsLayer.prototype._updateSegment = function(segment) {
-    var segmentGroup = this._findOrAddSegmentGroup(segment);
+    var self = this;
+    var screenWidth = self._view.getWidth();
+    var segmentGroup = self._findOrAddSegmentGroup(segment);
 
-    var segmentStartOffset = this._view.timeToPixels(segment.startTime);
-    var segmentEndOffset   = this._view.timeToPixels(segment.endTime);
+    var segmentStartOffset = self._view.timeToPixels(segment.startTime);
+    var segmentEndOffset   = self._view.timeToPixels(segment.endTime);
 
-    var frameStartOffset = this._view.getFrameOffset();
-    // var frameEndOffset   = frameStartOffset + this._view.getWidth();
+    var frameStartOffset = self._view.getFrameOffset();
+    // var frameEndOffset   = frameStartOffset + self._view.getWidth();
 
     var startPixel = segmentStartOffset - frameStartOffset;
     var endPixel   = segmentEndOffset   - frameStartOffset;
-    var marker = segmentGroup.inMarker;
-    var markerWidth = marker ? marker.getWidth() : 0;
 
-    var rectWindow = segmentGroup.rectWindow;
+    // segmentGroup.handle.update({
+    //   startPixel: startPixel,
+    //   endPixel: endPixel
+    // });
+    segmentGroup.highlightRect.y(0);
+    segmentGroup.highlightRect.x(startPixel);
+    segmentGroup.highlightRect.width(endPixel - startPixel);
+    segmentGroup.highlightRect.height(self._view.getHeight());
 
-    rectWindow.x(startPixel + markerWidth * 2);
-    rectWindow.width(endPixel - startPixel - markerWidth * 3);
-    if (this._allowEditing && segment.editable) {
-      if (marker) {
-        marker.setX(Math.max(0, startPixel + markerWidth));
-
-        // marker.label.setText(Utils.formatTime(segment.startTime, false));
-      }
-
-      marker = segmentGroup.outMarker;
-
-      if (marker) {
-        marker.setX(endPixel - markerWidth);
-
-        // marker.label.setText(Utils.formatTime(segment.endTime, false));
-      }
+    segmentGroup.highlightRect.baseOpacity = 0.2;
+    // TODO: Finish this cool effect sometimes
+    // segmentGroup.baseOpacity = 1 - Math.abs(
+    //   Math.sin(
+    //     (startPixel + (endPixel - startPixel) / 2
+    //     - screenWidth / 2) / screenWidth * Math.PI));
+    segmentGroup.highlightRect.opacity(segmentGroup.highlightRect.baseOpacity);
+    function setSizeAndPosForHandle(handle) {
+      handle.x(handle.isStart ? startPixel : endPixel - handle.width());
+      handle.width(self._handleSize);
+      handle.height(self._handleSize);
     }
+
+    setSizeAndPosForHandle(segmentGroup.startHandle);
+    setSizeAndPosForHandle(segmentGroup.endHandle);
+    segmentGroup.startHandle.checkCursorInRange();
+    segmentGroup.endHandle.checkCursorInRange();
   };
 
   /**

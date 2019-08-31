@@ -219,6 +219,35 @@ define(function() {
 
     isHTMLElement: function(value) {
       return value instanceof HTMLElement;
+    },
+
+    // getRelativePointerPosition: function(event, stage) {
+    //   return stage && stage.content ? {
+    //     x: stage.content.getBoundingClientRect().left - event.clientX,
+    //     y: stage.content.getBoundingClientRect().top - event.clientY
+    //   } : undefined;
+    // },
+
+    // https://konvajs.org/docs/sandbox/Relative_Pointer_Position.html
+    getRelativePointerPosition: function(node) {
+      // the function will return pointer position relative to the passed node
+      var transform = node.getAbsoluteTransform().copy();
+
+      // to detect relative position we need to invert transform
+      transform.invert();
+
+      // get pointer (say mouse or touch) position
+      var pos = node.getStage().getPointerPosition();
+
+      // now we find relative point
+      return transform.point(pos);
+    },
+
+    getDistance: function(vector1, vector2) {
+      var a = vector1.x - vector2.x;
+      var b = vector1.y - vector2.y;
+
+      return Math.sqrt(a * a + b * b);
     }
   };
 });

@@ -71,6 +71,7 @@ define([
     });
 
     self._waveformLayer = new Konva.FastLayer();
+    self._waveformLayer.listening(false);
 
     self._axis = new WaveformAxis(self, self._waveformLayer, peaks.options);
 
@@ -125,7 +126,7 @@ define([
       }
     });
 
-    self._mouseDragHandler = new MouseDragHandler(self._stage, {
+    /* self._mouseDragHandler = new MouseDragHandler(self._stage, {
       onMouseDown: function(mousePosX) {
         self._stage.listening(false);
         this.initialFrameOffset = self._frameOffset;
@@ -171,7 +172,7 @@ define([
           self._peaks.player.seek(time);
         }
       }
-    });
+    }); */
 
     // Events
 
@@ -275,6 +276,15 @@ define([
       this._updateWaveform(this._frameOffset);
     }
   };
+
+  /**
+   * Gets segments visible in the current zoom view.
+   *
+   * @param {Number} startTime The start of the time region, in seconds.
+   * @param {Number} endTime The end of the time region, in seconds.
+   *
+   * @returns {Array<Segment>}
+   */
 
   WaveformZoomView.prototype._getVisibleSegments = function(startTime, endTime) {
     return this._peaks.segments.find(startTime, endTime);
