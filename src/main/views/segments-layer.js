@@ -112,29 +112,62 @@ define([
       self._layer.draw();
     });
 
-    this._peaks.on('segments.dragged', function(segment) {
-      // change to segmentGroup
-      self._renderSegmentGroup(segment);
-      self._layer.draw();
-    });
-
     this._layer.on('mousemove', function() {
       self._updateVisibleSegments();
     });
 
     this._layer.on('mousedown', function() {
-      self._isMouseDown = true;
-      self._mouseStartX = self._mouseX;
-      self._updateVisibleSegments();
+      self._isMouseDragging = true;
+      var segmentGroupKeys = Object.keys(self._segmentGroups);
+
+      for (var i = 0; i < segmentGroupKeys.length; i++) {
+        var segmentGroup = self._segmentGroups[segmentGroupKeys[i]];
+        var startHandle = segmentGroup.startHandle;
+
+        if (startHandle.isMouseOver) {
+          startHandle.isMouseDragging = true;
+          startHandle.mouseStartDiffX = self._mouseX - startHandle.x();
+          self._renderSegmentGroup(segmentGroup);
+          self._layer.draw();
+          break;
+        }
+
+        var endHandle = segmentGroup.endHandle;
+
+        if (endHandle.isMouseOver) {
+          endHandle.isMouseDragging = true;
+          endHandle.mouseStartDiffX = self._mouseX - endHandle.x();
+          self._renderSegmentGroup(segmentGroup);
+          self._layer.draw();
+          break;
+        }
+      }
     });
 
-    this._layer.on('mouseup', function() {
-      self._isMouseDown = false;
-      self._updateVisibleSegments();
+    window.addEventListener('mouseup', function() {
+      self._isMouseDragging = false;
+      var segmentGroupKeys = Object.keys(self._segmentGroups);
+
+      for (var i = 0; i < segmentGroupKeys.length; i++) {
+        var segmentGroup = self._segmentGroups[segmentGroupKeys[i]];
+        var startHandle = segmentGroup.startHandle;
+        var endHandle = segmentGroup.endHandle;
+
+        if (startHandle.isMouseDragging || endHandle.isMouseDragging) {
+          startHandle.isMouseDragging = false;
+          endHandle.isMouseDragging = false;
+          self._renderSegmentGroup(segmentGroup);
+          self._layer.draw();
+        }
+        if (segmentGroup.isSegmentTouching) {
+          segmentGroup.isSegmentTouching = false;
+          self._renderSegmentGroup(segmentGroup);
+          self._layer.draw();
+        }
+      }
     });
 
     this._peaks.on('segmentGroup.mouseenter', function(segmentGroup) {
-      console.log(segmentGroup);
       self._renderSegmentGroup(segmentGroup);
       self._layer.draw();
     });
@@ -322,6 +355,7 @@ define([
   SegmentsLayer.prototype._renderSegmentGroup = function(segmentGroup) {
     var self = this;
 
+    var minSegmentDuration = 0.2;
     var segment = segmentGroup.segment;
     var isSegmentMouseOver = segmentGroup.isMouseOver;
     var activeRange = 100;
@@ -334,14 +368,74 @@ define([
     var highlightRectDistance = segmentGroup.highlightRectDistance;
     var startHandle = segmentGroup.startHandle;
     var endHandle = segmentGroup.endHandle;
+    var isSegmentDragging =
+      self._isMouseDragging && (startHandle.isMouseDragging || endHandle.isMouseDragging);
+    var isSegmentActive = isSegmentMouseOver || isSegmentDragging;
+    var isSegmentTouching = segmentGroup.isSegmentTouching;
 
     var x = self._mouseX;
     var y = self._mouseY;
+    var frameStartOffset = self._view.getFrameOffset();
+    var newTime;
+    var neighbours;
+
+    if (startHandle.isMouseDragging) {
+      neighbours = self._findSegmentNeighbours(segment);
+      if (x > 0) {
+        var inOffset = frameStartOffset + x - startHandle.mouseStartDiffX;
+
+        newTime = this._view.pixelsToTime(inOffset);
+
+        if (newTime >= segment.endTime - minSegmentDuration) {
+          newTime = segment.endTime - minSegmentDuration;
+        }
+        else if (neighbours.left) {
+          if (neighbours.left.segment.endTime >= newTime) {
+            neighbours.left.isSegmentTouching = true;
+            self._renderSegmentGroup(neighbours.left);
+            newTime = neighbours.left.segment.endTime;
+          }
+          else {
+            neighbours.left.isSegmentTouching = false;
+          }
+        }
+
+        if (newTime !== segment.startTime) {
+          segment.startTime = newTime;
+          self._peaks.emit('segments.dragged', segmentGroup);
+        }
+      }
+    }
+    else if (endHandle.isMouseDragging) {
+      neighbours = self._findSegmentNeighbours(segment);
+      if (x <= this._view.getWidth()) {
+        var outOffset = frameStartOffset + x + endHandle.width() - endHandle.mouseStartDiffX + 1;
+
+        newTime = this._view.pixelsToTime(outOffset);
+
+        if (newTime <= segment.startTime + minSegmentDuration) {
+          newTime = segment.startTime + minSegmentDuration;
+        }
+        else if (neighbours.right) {
+          if (neighbours.right.segment.startTime <= newTime) {
+            neighbours.right.isSegmentTouching = true;
+            self._renderSegmentGroup(neighbours.right);
+            newTime = neighbours.right.segment.startTime;
+          }
+          else {
+            neighbours.right.isSegmentTouching = false;
+          }
+        }
+
+        if (newTime !== segment.startTime) {
+          segment.endTime = newTime;
+          self._peaks.emit('segments.dragged', segmentGroup);
+        }
+      }
+    }
 
     var segmentStartOffset = self._view.timeToPixels(segment.startTime);
     var segmentEndOffset   = self._view.timeToPixels(segment.endTime);
-
-    var frameStartOffset = self._view.getFrameOffset();
 
     var startPixel = segmentStartOffset - frameStartOffset;
     var endPixel   = segmentEndOffset   - frameStartOffset;
@@ -383,20 +477,31 @@ define([
       }
     }
 
-    var fillColor =
-      isSegmentMouseOver ? segmentGroup.activeHandleColor : segmentGroup.restHandleColor;
+    var fillColor = segmentGroup.restHandleColor;
+
+    if (self._isMouseDragging) {
+      if (isSegmentDragging) {
+        fillColor = segmentGroup.activeHandleColor;
+      }
+      else if (isSegmentMouseOver || isSegmentTouching) {
+        fillColor = '#de9866';
+      }
+    }
+    else {
+      fillColor = segmentGroup[(isSegmentMouseOver ? 'active' : 'rest') + 'HandleColor'];
+    }
     var startHandleOpacity = startHandle.isMouseOver ? 0.5 : 0;
     var endHandleOpacity = startHandle.isMouseOver ? 0.5 : 0;
 
     if (doEffects) {
-      startHandleOpacity = isSegmentMouseOver ?
+      startHandleOpacity = isSegmentActive ?
         Math.max(0.2, 1 - Math.min(startHandleDist / activeRange)) : 0;
-      endHandleOpacity = isSegmentMouseOver ?
+      endHandleOpacity = isSegmentActive ?
         Math.max(0.2, 1 - Math.min(endHandleDist / activeRange)) : 0;
     }
 
     highlightRect.opacity(
-      isSegmentMouseOver ? maxHighlightRectOpacity - 0.25 : highlightRectOpacity
+      isSegmentActive ? maxHighlightRectOpacity - 0.25 : highlightRectOpacity
     );
     highlightRect.fill(fillColor);
 
@@ -405,10 +510,10 @@ define([
       startHandle.width() + endHandle.width()
     ) {
       // TODO: refactor into functions
-      startHandle.visible(true);
-      startHandle.opacity(startHandleOpacity);
-      endHandle.visible(true);
-      endHandle.opacity(endHandleOpacity);
+      startHandle.visible(isSegmentMouseOver || self._isMouseDragging && isSegmentDragging);
+      startHandle.opacity(isSegmentActive ? 0.5 : startHandleOpacity);
+      endHandle.visible(isSegmentMouseOver || self._isMouseDragging && isSegmentDragging);
+      endHandle.opacity(isSegmentActive ? 0.5 : endHandleOpacity);
       startHandle.fill(
         startHandle.isMouseOver ? segmentGroup.activeHandleColor : segmentGroup.restHandleColor
       );

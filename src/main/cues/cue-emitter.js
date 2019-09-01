@@ -280,7 +280,6 @@ define([
     'points.remove',
     'points.remove_all',
     'segments.update',
-    'segments.dragged',
     'segments.add',
     'segments.remove',
     'segments.remove_all'
