@@ -188,6 +188,8 @@ define([
       self._isMouseDragging = false;
       var segmentGroupKeys = Object.keys(self._segmentGroups);
 
+      self._peaks.emit('zoomview.mouseup');
+
       for (var i = 0; i < segmentGroupKeys.length; i++) {
         var segmentGroup = self._segmentGroups[segmentGroupKeys[i]];
         var startHandle = segmentGroup.startHandle;
@@ -451,7 +453,7 @@ define([
 
         if (newTime !== segment.startTime) {
           segment.startTime = newTime;
-          self._peaks.emit('segments.dragged', segmentGroup);
+          self._peaks.emit('segments.dragged', { segmentGroup: segmentGroup, isInHandle: true });
         }
       }
     }
@@ -477,7 +479,7 @@ define([
 
         if (newTime !== segment.startTime) {
           segment.endTime = newTime;
-          self._peaks.emit('segments.dragged', segmentGroup);
+          self._peaks.emit('segments.dragged', { segmentGroup: segmentGroup });
         }
       }
     }
@@ -549,7 +551,7 @@ define([
     }
 
     highlightRect.opacity(
-      isSegmentActive ? maxHighlightRectOpacity - 0.25 : highlightRectOpacity
+      isSegmentActive || segment.isFocused ? maxHighlightRectOpacity - 0.25 : highlightRectOpacity
     );
     highlightRect.fill(fillColor);
 
@@ -558,13 +560,14 @@ define([
       startHandle.width() + endHandle.width()
     ) {
       // TODO: refactor into functions
-      startHandle.visible(isSegmentMouseOver || self._isMouseDragging && isSegmentDragging);
+      startHandle.visible(isSegmentMouseOver || segment.isFocused || isSegmentDragging);
       startHandle.opacity(
-        isSegmentDragging || startHandle.isMouseDragging ? 0.5 : startHandleOpacity
+        isSegmentDragging || startHandle.isMouseDragging || segment.isFocused ?
+          0.5 : startHandleOpacity
       );
-      endHandle.visible(isSegmentMouseOver || self._isMouseDragging && isSegmentDragging);
+      endHandle.visible(isSegmentMouseOver || segment.isFocused || isSegmentDragging);
       endHandle.opacity(
-        isSegmentDragging || endHandle.isMouseDragging ? 0.5 : endHandleOpacity
+        isSegmentDragging || endHandle.isMouseDragging || segment.isFocused ? 0.5 : endHandleOpacity
       );
       startHandle.fill(
         // eslint-disable-next-line no-nested-ternary
