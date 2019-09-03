@@ -34,7 +34,9 @@ define([
     this._playheadColor = peaks.options.playheadColor;
     this._playheadTextColor = peaks.options.playheadTextColor;
 
-    this._playheadLayer = new Konva.Layer();
+    this._playheadLayer = new Konva.Layer({
+      listening: false
+    });
 
     this._createPlayhead(this._playheadColor);
 

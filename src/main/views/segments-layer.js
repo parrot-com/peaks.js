@@ -66,18 +66,24 @@ define([
       var frameStartTime = self._view.pixelsToTime(frameOffset);
       var frameEndTime   = self._view.pixelsToTime(frameOffset + width);
 
+      // if (segmentGroup) {
+      //   self._removeSegment(segment);
+      //   redraw = true;
+      // }
+
       if (segmentGroup) {
-        self._removeSegment(segment);
         redraw = true;
       }
 
-      if (segment.isVisible(frameStartTime, frameEndTime)) {
+      if (!segmentGroup && segment.isVisible(frameStartTime, frameEndTime)) {
         self._addSegmentGroup(segment);
         redraw = true;
       }
 
       if (redraw) {
         self._renderSegmentGroup(segmentGroup);
+        self._layer.draw();
+        // self.updateSegments(frameStartTime, frameEndTime);
       }
     });
 
@@ -118,29 +124,63 @@ define([
 
     this._layer.on('mousedown', function() {
       self._isMouseDragging = true;
+      var targettedSegmentGroup = false;
       var segmentGroupKeys = Object.keys(self._segmentGroups);
+      var frameStartOffset = self._view.getFrameOffset();
+      var clickedTime = self._view.pixelsToTime(
+        frameStartOffset + self._mouseX
+      );
+      var redrawLayer = false;
 
       for (var i = 0; i < segmentGroupKeys.length; i++) {
+        var redrawSegment = false;
         var segmentGroup = self._segmentGroups[segmentGroupKeys[i]];
+        var segment = segmentGroup.segment;
         var startHandle = segmentGroup.startHandle;
 
         if (startHandle.isMouseOver) {
+          segmentGroup.neighbours = self._findSegmentNeighbours(segmentGroup.segment);
           startHandle.isMouseDragging = true;
           startHandle.mouseStartDiffX = self._mouseX - startHandle.x();
-          self._renderSegmentGroup(segmentGroup);
-          self._layer.draw();
-          break;
+          redrawSegment = true;
         }
 
         var endHandle = segmentGroup.endHandle;
 
         if (endHandle.isMouseOver) {
+          segmentGroup.neighbours = self._findSegmentNeighbours(segmentGroup.segment);
           endHandle.isMouseDragging = true;
-          endHandle.mouseStartDiffX = self._mouseX - endHandle.x();
-          self._renderSegmentGroup(segmentGroup);
-          self._layer.draw();
-          break;
+          endHandle.mouseStartDiffX = self._mouseX - endHandle.x() - 1;
+          redrawSegment = true;
         }
+
+        var isFocused = segmentGroup.isMouseOver;
+
+        if (isFocused !== segment.isFocused) {
+          segment.update({ isFocused: isFocused });
+        }
+
+        if (segmentGroup.isMouseOver) {
+          targettedSegmentGroup = true;
+          self._peaks.emit('zoomview.mousedown', {
+            segmentGroup: segmentGroup,
+            time: clickedTime
+          });
+          redrawSegment = true;
+        }
+
+        if (redrawSegment) {
+          self._renderSegmentGroup(segmentGroup);
+          redrawLayer = true;
+        }
+      }
+
+      if (!targettedSegmentGroup) {
+        self._peaks.emit('zoomview.mousedown', { time: clickedTime });
+      }
+
+      if (redrawLayer) {
+        self._layer.draw();
       }
     });
 
@@ -223,14 +263,17 @@ define([
       var x = self._mouseX;
       var y = self._mouseY;
 
+      var startHandle = segmentGroup.startHandle;
+      var endHandle = segmentGroup.endHandle;
       var highlightRect = segmentGroup.highlightRect;
+      var endPixel = highlightRect.x() + highlightRect.width();
 
-      segmentGroup.highlightRectDistance = x < highlightRect.x() ?
+      segmentGroup.highlightRectDistance = x <= highlightRect.x() ?
         highlightRect.x() - x :
-        x - (highlightRect.x() + highlightRect.width());
+        x - endPixel;
 
-      var isSegmentMouseOver = x >= highlightRect.x() &&
-          x <= highlightRect.x() + highlightRect.width();
+      var isSegmentMouseOver = x > highlightRect.x() &&
+          x <= endPixel;
 
       if (isSegmentMouseOver !== segmentGroup.isMouseOver) {
         segmentGroup.isMouseOver = isSegmentMouseOver;
@@ -239,15 +282,21 @@ define([
         }
         else {
           // TODO: This fires at init.
+          startHandle.isMouseOver = false;
+          endHandle.isMouseOver = false;
           self._peaks.emit('segmentGroup.mouseleave', segmentGroup);
+          self._peaks.emit(
+            'segmentGroup.handle.mouseleave',
+            { segmentGroup: segmentGroup, isInHandle: true }
+          );
+          self._peaks.emit('segmentGroup.handle.mouseleave', { segmentGroup: segmentGroup });
         }
       }
 
-      var startHandle = segmentGroup.startHandle;
-      var endHandle = segmentGroup.endHandle;
       var isStartHandleMouseOver = isSegmentMouseOver &&
-        x <= highlightRect.x() + startHandle.width() &&
-        y <= startHandle.height();
+        (x <= highlightRect.x() + 3 ||
+        (x <= highlightRect.x() + startHandle.width() &&
+        y <= startHandle.height()));
 
       if (isStartHandleMouseOver !== segmentGroup.startHandle.isMouseOver) {
         segmentGroup.startHandle.isMouseOver = isStartHandleMouseOver;
@@ -258,8 +307,9 @@ define([
         );
       }
       var isEndHandleMouseOver = isSegmentMouseOver &&
-        x >= highlightRect.x() + highlightRect.width() - endHandle.width() &&
-        y <= endHandle.height();
+        (x >= endPixel - 3 ||
+        (x >= endPixel - endHandle.width() &&
+        y <= endHandle.height()));
 
       if (isEndHandleMouseOver !== segmentGroup.endHandle.isMouseOver) {
         segmentGroup.endHandle.isMouseOver = isEndHandleMouseOver;
@@ -372,15 +422,14 @@ define([
       self._isMouseDragging && (startHandle.isMouseDragging || endHandle.isMouseDragging);
     var isSegmentActive = isSegmentMouseOver || isSegmentDragging;
     var isSegmentTouching = segmentGroup.isSegmentTouching;
+    var neighbours = segmentGroup.neighbours;
 
     var x = self._mouseX;
     var y = self._mouseY;
     var frameStartOffset = self._view.getFrameOffset();
     var newTime;
-    var neighbours;
 
     if (startHandle.isMouseDragging) {
-      neighbours = self._findSegmentNeighbours(segment);
       if (x > 0) {
         var inOffset = frameStartOffset + x - startHandle.mouseStartDiffX;
 
@@ -407,9 +456,8 @@ define([
       }
     }
     else if (endHandle.isMouseDragging) {
-      neighbours = self._findSegmentNeighbours(segment);
       if (x <= this._view.getWidth()) {
-        var outOffset = frameStartOffset + x + endHandle.width() - endHandle.mouseStartDiffX + 1;
+        var outOffset = frameStartOffset + x + endHandle.width() - endHandle.mouseStartDiffX;
 
         newTime = this._view.pixelsToTime(outOffset);
 
@@ -479,17 +527,17 @@ define([
 
     var fillColor = segmentGroup.restHandleColor;
 
-    if (self._isMouseDragging) {
-      if (isSegmentDragging) {
-        fillColor = segmentGroup.activeHandleColor;
-      }
-      else if (isSegmentMouseOver || isSegmentTouching) {
-        fillColor = '#de9866';
-      }
+    if (self._isMouseDragging && isSegmentTouching) {
+      fillColor = '#de9866';
+      highlightRectOpacity = 0.3;
     }
     else {
       fillColor = segmentGroup[(isSegmentMouseOver ? 'active' : 'rest') + 'HandleColor'];
     }
+    if (segment.isFocused) {
+      fillColor = '#66DE9D';
+    }
+
     var startHandleOpacity = startHandle.isMouseOver ? 0.5 : 0;
     var endHandleOpacity = startHandle.isMouseOver ? 0.5 : 0;
 
@@ -511,138 +559,32 @@ define([
     ) {
       // TODO: refactor into functions
       startHandle.visible(isSegmentMouseOver || self._isMouseDragging && isSegmentDragging);
-      startHandle.opacity(isSegmentActive ? 0.5 : startHandleOpacity);
+      startHandle.opacity(
+        isSegmentDragging || startHandle.isMouseDragging ? 0.5 : startHandleOpacity
+      );
       endHandle.visible(isSegmentMouseOver || self._isMouseDragging && isSegmentDragging);
-      endHandle.opacity(isSegmentActive ? 0.5 : endHandleOpacity);
+      endHandle.opacity(
+        isSegmentDragging || endHandle.isMouseDragging ? 0.5 : endHandleOpacity
+      );
       startHandle.fill(
-        startHandle.isMouseOver ? segmentGroup.activeHandleColor : segmentGroup.restHandleColor
+        // eslint-disable-next-line no-nested-ternary
+        segment.isFocused ? '#66DE9D' :
+          startHandle.isMouseOver ?
+          segmentGroup.activeHandleColor :
+          segmentGroup.restHandleColor
       );
       endHandle.fill(
-        endHandle.isMouseOver ? segmentGroup.activeHandleColor : segmentGroup.restHandleColor
+        // eslint-disable-next-line no-nested-ternary
+        segment.isFocused ? '#66DE9D' :
+          endHandle.isMouseOver ?
+          segmentGroup.activeHandleColor :
+          segmentGroup.restHandleColor
       );
     }
     else {
       startHandle.visible(false);
       endHandle.visible(false);
     }
-  };
-
-  SegmentsLayer.prototype._createSegmentGroupOld = function(segment) {
-    var self = this;
-
-    var segmentGroup = new Konva.Group();
-
-    segmentGroup.segment = segment;
-
-    segmentGroup.waveformShape = new WaveformShape({
-      color: segment.color,
-      view: self._view,
-      segment: segment
-    });
-
-    segmentGroup.rectWindow = self._peaks.options.createSegmentRectangle({
-      height:       self._view.getHeight(),
-      segmentGroup: segmentGroup,
-      segment:      segment,
-      layer:        self._layer,
-      onMouseEnter: self._onRectWindowMouseEnter.bind(self),
-      onMouseLeave: self._onRectWindowMouseLeave.bind(self)
-    });
-
-    // Set up event handlers to show/hide the segment label text when the user
-    // hovers the mouse over the segment.
-
-    segmentGroup.waveformShape.on('mouseenter', function(event) {
-      if (!event.target.parent) {
-        self._peaks.logger('No parent for object:', event.target);
-        return;
-      }
-
-      event.target.parent.label.show();
-      self._layer.draw();
-      self._peaks.emit('segments.mouseenter', event.target._segment);
-    });
-
-    segmentGroup.waveformShape.on('mouseleave', function(event) {
-      if (!event.target.parent) {
-        self._peaks.logger('No parent for object:', event.target);
-        return;
-      }
-
-      event.target.parent.label.hide();
-      self._layer.draw();
-      self._peaks.emit('segments.mouseleave', event.target._segment);
-    });
-
-    segmentGroup.waveformShape.on('click', function(event) {
-      if (!event.target.parent) {
-        self._peaks.logger('No parent for object:', event.target);
-        return;
-      }
-
-      self._peaks.emit('segments.click', event.target._segment);
-      console.log('one click');
-    });
-
-    segmentGroup.waveformShape.on('dblclick', function(event) {
-      console.log('double click');
-      console.log(event);
-    });
-
-    segmentGroup.add(segmentGroup.rectWindow);
-    segmentGroup.add(segmentGroup.waveformShape);
-
-    segmentGroup.label = self._peaks.options.createSegmentLabel(segmentGroup, segment);
-    segmentGroup.label.hide();
-    segmentGroup.add(segmentGroup.label);
-
-    var editable = self._allowEditing && segment.editable;
-
-    if (editable) {
-      segmentGroup.inMarker = this._peaks.options.createSegmentMarker({
-        draggable:    editable,
-        height:       this._view.getHeight(),
-        viewWidth:    this._view.getWidth(),
-        color:        this._peaks.options.inMarkerColor,
-        inMarker:     true,
-        segmentGroup: segmentGroup,
-        segment:      segment,
-        layer:        self._layer,
-        onDrag:       editable ? self._onSegmentHandleDrag.bind(self) : null,
-        onMouseEnter: self._onSegmentHandleMouseEnter.bind(self),
-        onMouseLeave: self._onSegmentHandleMouseLeave.bind(self),
-        findSegmentNeighbours: self._findSegmentNeighbours.bind(self)
-      });
-
-      segmentGroup.add(segmentGroup.inMarker);
-
-      segmentGroup.outMarker = this._peaks.options.createSegmentMarker({
-        draggable:    editable,
-        height:       this._view.getHeight(),
-        viewWidth:    this._view.getWidth(),
-        color:        this._peaks.options.outMarkerColor,
-        inMarker:     false,
-        segmentGroup: segmentGroup,
-        segment:      segment,
-        layer:        self._layer,
-        onDrag:       editable ? self._onSegmentHandleDrag.bind(self) : null,
-        onMouseEnter:  self._onSegmentHandleMouseEnter.bind(self),
-        onMouseLeave:   self._onSegmentHandleMouseLeave.bind(self),
-        findSegmentNeighbours: self._findSegmentNeighbours.bind(self)
-      });
-
-      segmentGroup.add(segmentGroup.outMarker);
-    }
-
-    return segmentGroup;
-  };
-
-  SegmentsLayer.prototype._onSegmentMouseEnter = function(segment) {
-    this._peaks.emit('segments.mouseenter', segment);
-  };
-
-  SegmentsLayer.prototype._onSegmentMouseLeave = function(segment) {
-    this._peaks.emit('segments.mouseleave', segment);
   };
 
   /**
@@ -829,6 +771,9 @@ define([
     var frameEndTime   = self._view.pixelsToTime(frameOffset + width);
     var segmentGroups  = self._segmentGroups;
     var segments = this._peaks.segments.find(frameStartTime, frameEndTime);
+      // .sort(function(a, b) {
+      //   return a.startTime > b.startTime ? 1 : -1;
+      // });
     var segmentIndex = -1;
 
     for (var i = 0; i < segments.length; i++) {

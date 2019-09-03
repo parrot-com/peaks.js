@@ -63,6 +63,7 @@ define([
     this._labelText = labelText;
     this._color     = color;
     this._editable  = editable;
+    this._isFocused = false;
   }
 
   Object.defineProperties(Segment.prototype, {
@@ -114,6 +115,12 @@ define([
       get: function() {
         return this._editable;
       }
+    },
+    isFocused: {
+      enumerable: true,
+      get: function() {
+        return this._isFocused;
+      }
     }
   });
 
@@ -123,6 +130,7 @@ define([
     var labelText = Object.prototype.hasOwnProperty.call(options, 'labelText') ? options.labelText : this.labelText;
     var color     = Object.prototype.hasOwnProperty.call(options, 'color')     ? options.color     : this.color;
     var editable  = Object.prototype.hasOwnProperty.call(options, 'editable')  ? options.editable  : this.editable;
+    var isFocused = Object.prototype.hasOwnProperty.call(options, 'isFocused') ? options.isFocused : this.isFocused;
 
     validateSegment(startTime, endTime, 'updateTime()');
 
@@ -131,6 +139,7 @@ define([
     this._labelText = labelText;
     this._color     = color;
     this._editable  = editable;
+    this._isFocused = isFocused;
     this._parent._peaks.emit('segments.update', this);
   };
 
