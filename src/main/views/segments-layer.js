@@ -27,14 +27,16 @@ define([
    */
 
   function SegmentsLayer(peaks, view, allowEditing) {
-    this._peaks         = peaks;
-    this._view          = view;
-    this._allowEditing  = allowEditing;
-    this._segmentGroups = {};
-    this._handleSize    = 16;
-    this._layer         = new Konva.Layer();
-    this._mouseX        = undefined;
-    this._mouseY        = undefined;
+    this._peaks           = peaks;
+    this._view            = view;
+    this._allowEditing    = allowEditing;
+    this._segmentGroups   = {};
+    this._handleSize      = 16;
+    this._layer           = new Konva.Layer();
+    this._mouseX          = undefined;
+    this._mouseY          = undefined;
+    this._isMouseDragging = false;
+    this._isMouseOver     = false;
 
     this._mouseCapturingRect = new Konva.Rect({
       x: 0,
@@ -118,8 +120,72 @@ define([
       self._layer.draw();
     });
 
+    this._peaks.on('segments.select', function(segment) {
+      if (!segment) {
+        self._isMouseOver = false;
+        self._mouseX = self._layer.getWidth() / 2;
+        self._mouseY = -20;
+        return;
+      }
+
+      var segmentGroupKeys = Object.keys(self._segmentGroups);
+
+      for (var i = 0; i < segmentGroupKeys.length; i++) {
+        var segmentGroup = self._segmentGroups[segmentGroupKeys[i]];
+        var isMouseOver = segmentGroupKeys[i] === segment.id;
+
+        segmentGroup.isMouseOver = isMouseOver;
+      }
+
+      var frameStartOffset = self._view.getFrameOffset();
+      var x = self._view.timeToPixels(segment.startTime);
+      var width = self._view.timeToPixels(segment.endTime) - x;
+
+      self._isMouseOver = true;
+      self._mouseX = x - frameStartOffset + width / 2;
+      self._mouseY = self._layer.height() / 2;
+
+      if (x > frameStartOffset + self._layer.width() || width + x < frameStartOffset) {
+        var newFrameOffset = x - 100;
+
+        self._mouseX = x - newFrameOffset + width / 2;
+
+        self._peaks.emit('user_scroll.zoomview', newFrameOffset);
+      }
+      else {
+        self._updateVisibleSegments(true);
+      }
+    });
+
+    this._layer.on('mouseenter', function() {
+      self._isMouseOver = true;
+      self._updateVisibleSegments();
+    });
+
     this._layer.on('mousemove', function() {
       self._updateVisibleSegments();
+    });
+
+    this._layer.on('mouseleave', function() {
+      self._isMouseOver = true;
+      self._mouseX = self._layer.getWidth() / 2;
+      self._mouseY = -20;
+      var segmentGroupKeys = Object.keys(self._segmentGroups);
+      var redrawLayer = false;
+
+      for (var i = 0; i < segmentGroupKeys.length; i++) {
+        var segmentGroup = self._segmentGroups[segmentGroupKeys[i]];
+
+        if (segmentGroup.isMouseOver ||
+            segmentGroup.startHandle.isMouseOver ||
+            segmentGroup.endHandle.isMouseOver) {
+              redrawLayer = true;
+            }
+      }
+      if (redrawLayer) {
+        self._updateVisibleSegments(true);
+        self._layer.draw();
+      }
     });
 
     this._layer.on('mousedown', function() {
@@ -230,12 +296,15 @@ define([
     });
   };
 
-  SegmentsLayer.prototype._updateVisibleSegments = function() {
+  SegmentsLayer.prototype._updateVisibleSegments = function(dontFindCursor) {
     var self = this;
-    var pos = Utils.getRelativePointerPosition(self._layer);
 
-    self._mouseX = pos.x;
-    self._mouseY = pos.y;
+    if (!dontFindCursor) {
+      var pos = Utils.getRelativePointerPosition(self._layer);
+
+      self._mouseX = pos.x;
+      self._mouseY = pos.y;
+    }
 
     var frameOffset = self._view.getFrameOffset();
     var width = self._view.getWidth();
@@ -265,6 +334,7 @@ define([
       var x = self._mouseX;
       var y = self._mouseY;
 
+      var isMouseOver = self._isMouseOver;
       var startHandle = segmentGroup.startHandle;
       var endHandle = segmentGroup.endHandle;
       var highlightRect = segmentGroup.highlightRect;
@@ -274,8 +344,8 @@ define([
         highlightRect.x() - x :
         x - endPixel;
 
-      var isSegmentMouseOver = x > highlightRect.x() &&
-          x <= endPixel;
+      var isSegmentMouseOver = isMouseOver && (x > highlightRect.x() &&
+          x <= endPixel);
 
       if (isSegmentMouseOver !== segmentGroup.isMouseOver) {
         segmentGroup.isMouseOver = isSegmentMouseOver;
@@ -284,14 +354,18 @@ define([
         }
         else {
           // TODO: This fires at init.
-          startHandle.isMouseOver = false;
-          endHandle.isMouseOver = false;
           self._peaks.emit('segmentGroup.mouseleave', segmentGroup);
-          self._peaks.emit(
-            'segmentGroup.handle.mouseleave',
-            { segmentGroup: segmentGroup, isInHandle: true }
-          );
-          self._peaks.emit('segmentGroup.handle.mouseleave', { segmentGroup: segmentGroup });
+          if (startHandle.isMouseOver) {
+            startHandle.isMouseOver = false;
+            self._peaks.emit(
+              'segmentGroup.handle.mouseleave',
+              { segmentGroup: segmentGroup, isInHandle: true }
+            );
+          }
+          if (endHandle.isMouseOver) {
+            endHandle.isMouseOver = false;
+            self._peaks.emit('segmentGroup.handle.mouseleave', { segmentGroup: segmentGroup });
+          }
         }
       }
 
