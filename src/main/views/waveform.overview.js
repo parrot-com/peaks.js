@@ -66,9 +66,9 @@ define([
 
     self._waveformLayer = new Konva.FastLayer();
 
-    self._axis = new WaveformAxis(self, self._waveformLayer, peaks.options);
-
     self._createWaveform();
+
+    self._axis = new WaveformAxis(self, self._waveformLayer, peaks.options);
 
     // This would consume waaaay too much memory
     // self._segmentsLayer = new SegmentsLayer(peaks, self, false);
