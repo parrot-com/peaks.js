@@ -105,8 +105,8 @@ define([
    */
 
   WaveformSegments.prototype._addSegment = function(segment, insertionIndex) {
-    this._segments = this._segments.slice(0, insertionIndex + 1)
-      .concat(segment, this._segments.slice(insertionIndex + 1));
+    this._segments = this._segments.slice(0, insertionIndex)
+      .concat(segment, this._segments.slice(insertionIndex));
 
     this._segmentsById[segment.id] = segment;
   };
@@ -228,8 +228,10 @@ define([
     var insertionIndex = 0;
 
     for (var i = 0; i < self._segments.length; i++) {
-      if (self._segments[i].startTime > segments[0].startTime) {
-        insertionIndex = i - 1;
+      if (segments[0].startTime >= self._segments[i].endTime) {
+        insertionIndex = i + 1;
+      }
+      else {
         break;
       }
     }

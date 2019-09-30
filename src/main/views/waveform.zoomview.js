@@ -60,6 +60,8 @@ define([
 
     self._width = container.clientWidth;
     self._height = container.clientHeight || self._options.height;
+    self._amplitudeScale = 1;
+    self._isCmdModifier = false;
 
     // The pixel offset of the current frame being displayed
     self._frameOffset = 0;
@@ -96,6 +98,15 @@ define([
 
     self._syncPlayhead(time);
 
+    document.addEventListener('keydown', function(e) {
+      if (e.metaKey || e.ctrlKey) {
+        self._isCmdModifier = true;
+        document.addEventListener('keyup', function(e) {
+          self._handleCtrlKeyUp();
+        });
+      }
+    });
+
     self._stage.on('wheel', function(scrollData) {
       var e = scrollData.evt;
 
@@ -109,20 +120,27 @@ define([
       // });
       var diff = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY * -1;
 
-      var newFrameOffset = Utils.clamp(
-        Math.round(self._frameOffset + diff), 0, self._pixelLength - self._width
-      );
+      if (self._isCmdModifier) {
+        self._peaks.emit('user_amp_scale.zoomview',
+          Math.min(2.5, Math.max(0.5, self._amplitudeScale + diff / 50)));
+      }
+      else {
+        var newFrameOffset = Utils.clamp(
+          Math.round(self._frameOffset + diff), 0, self._pixelLength - self._width
+        );
 
-      if (newFrameOffset !== self._frameOffset) {
-        if (self._stage.listening()) {
-          self._stage.listening(false);
+        if (newFrameOffset !== self._frameOffset) {
+          // TODO: Implement with custom event listeners
+          // if (self._stage.listening()) {
+          //   self._stage.listening(false);
+          // }
+          // if (self._allowEventsTimeout) {
+          //   clearTimeout(self._allowEventsTimeout);
+          //   self._allowEventsTimeout = null;
+          // }
+          // self._allowEventsTimeout = setTimeout(self._allowEvents.bind(self), 100);
+          self._peaks.emit('user_scroll.zoomview', newFrameOffset);
         }
-        if (self._allowEventsTimeout) {
-          clearTimeout(self._allowEventsTimeout);
-          self._allowEventsTimeout = null;
-        }
-        self._allowEventsTimeout = setTimeout(self._allowEvents.bind(self), 100);
-        self._peaks.emit('user_scroll.zoomview', newFrameOffset);
       }
     });
 
@@ -196,6 +214,10 @@ define([
       self._updateWaveform(pixelOffset);
     });
 
+    self._peaks.on('user_amp_scale.zoomview', function(scale) {
+      self.setAmplitudeScale(scale);
+    });
+
     self._peaks.on('player_play', function(time) {
       self._playheadLayer.updatePlayheadTime(time);
     });
@@ -233,6 +255,11 @@ define([
     self._peaks.on('keyboard.shift_left', nudgeFrame.bind(self, -1, true));
     self._peaks.on('keyboard.shift_right', nudgeFrame.bind(self, 1, true));
   }
+
+  WaveformZoomView.prototype._handleCtrlKeyUp = function() {
+    this._isCmdModifier = false;
+    document.removeEventListener('keyup', WaveformZoomView.prototype._handleCtrlKeyUp);
+  };
 
   WaveformZoomView.prototype._allowEvents = function() {
     this._stage.listening(true);
@@ -415,10 +442,12 @@ define([
        throw new Error('view.setAmplitudeScale(): Scale must be a valid number');
     }
 
+    this._amplitudeScale = scale;
+
     this._waveformShape.setAmplitudeScale(scale);
     this._waveformLayer.draw();
 
-    this._segmentsLayer.setAmplitudeScale(scale);
+    // this._segmentsLayer.setAmplitudeScale(scale);
   };
 
   /**

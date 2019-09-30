@@ -123,7 +123,7 @@ define([
     this._peaks.on('segments.select', function(segment) {
       if (!segment) {
         self._isMouseOver = false;
-        self._mouseX = self._layer.getWidth() / 2;
+        // self._mouseX = self._layer.getWidth() / 2;
         self._mouseY = -100;
         self._updateVisibleSegments(true);
         return;
@@ -169,7 +169,7 @@ define([
 
     this._layer.on('mouseleave', function() {
       self._isMouseOver = false;
-      self._mouseX = self._layer.getWidth() / 2;
+      // self._mouseX = self._layer.getWidth() / 2;
       self._mouseY = -20;
       var segmentGroupKeys = Object.keys(self._segmentGroups);
       var redrawLayer = false;
