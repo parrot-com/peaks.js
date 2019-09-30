@@ -120,7 +120,7 @@ define([
       self._layer.draw();
     });
 
-    this._peaks.on('segments.select', function(segment) {
+    this._peaks.on('segments.select', function(segment, scrollIntoView) {
       if (!segment) {
         self._isMouseOver = false;
         // self._mouseX = self._layer.getWidth() / 2;
@@ -151,7 +151,9 @@ define([
 
         self._mouseX = x - newFrameOffset + width / 2;
 
-        self._peaks.emit('user_scroll.zoomview', newFrameOffset);
+        if (scrollIntoView) {
+          self._peaks.emit('user_scroll.zoomview', newFrameOffset);
+        }
       }
       else {
         self._updateVisibleSegments(true);
@@ -217,7 +219,7 @@ define([
         if (endHandle.isMouseOver) {
           segmentGroup.neighbours = self._findSegmentNeighbours(segmentGroup.segment);
           endHandle.isMouseDragging = true;
-          endHandle.mouseStartDiffX = self._mouseX - endHandle.x() - 1;
+          endHandle.mouseStartDiffX = self._mouseX - endHandle.x();
           redrawSegment = true;
         }
 
@@ -542,7 +544,7 @@ define([
           newTime = segment.startTime + minSegmentDuration;
         }
         else if (neighbours.right) {
-          if (neighbours.right.segment.startTime <= newTime) {
+          if (neighbours.right.segment.startTime <= Math.round(newTime * 100) / 100) {
             neighbours.right.isSegmentTouching = true;
             self._renderSegmentGroup(neighbours.right);
             newTime = neighbours.right.segment.startTime;
