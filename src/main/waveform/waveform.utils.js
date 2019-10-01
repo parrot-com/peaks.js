@@ -248,6 +248,10 @@ define(function() {
       var b = vector1.y - vector2.y;
 
       return Math.sqrt(a * a + b * b);
+    },
+
+    timesEqualInHundreths: function(time1, time2) {
+      return Math.round(time1 * 100) / 100 === Math.round(time2 * 100) / 100;
     }
   };
 });

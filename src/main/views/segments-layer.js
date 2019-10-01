@@ -34,6 +34,7 @@ define([
     this._handleSize      = 16;
     this._layer           = new Konva.Layer();
     this._mouseX          = undefined;
+    this._mouseXStart     = undefined;
     this._mouseY          = undefined;
     this._isMouseDragging = false;
     this._isMouseOver     = false;
@@ -193,6 +194,7 @@ define([
 
     this._layer.on('mousedown', function() {
       self._isMouseDragging = true;
+      self._mouseXStart = self._mouseX;
       var targettedSegmentGroup = false;
       var segmentGroupKeys = Object.keys(self._segmentGroups);
       var frameStartOffset = self._view.getFrameOffset();
@@ -507,9 +509,10 @@ define([
     var y = self._mouseY;
     var frameStartOffset = self._view.getFrameOffset();
     var newTime;
+    var mouseMoved = Math.abs(x - self._mouseXStart) > 0;
 
     if (startHandle.isMouseDragging) {
-      if (x > 0) {
+      if (x >= 0 && mouseMoved) {
         var inOffset = frameStartOffset + x - startHandle.mouseStartDiffX;
 
         newTime = this._view.pixelsToTime(inOffset);
@@ -517,15 +520,11 @@ define([
         if (newTime >= segment.endTime - minSegmentDuration) {
           newTime = segment.endTime - minSegmentDuration;
         }
-        else if (neighbours.left) {
-          if (neighbours.left.segment.endTime >= newTime) {
-            neighbours.left.isSegmentTouching = true;
-            self._renderSegmentGroup(neighbours.left);
-            newTime = neighbours.left.segment.endTime;
-          }
-          else {
-            neighbours.left.isSegmentTouching = false;
-          }
+        else if (neighbours.left && neighbours.left.segment.endTime >= newTime) {
+          newTime = neighbours.left.segment.endTime;
+        }
+        else if (newTime < 0) {
+          newTime = 0;
         }
 
         if (newTime !== segment.startTime) {
@@ -533,9 +532,14 @@ define([
           self._peaks.emit('segments.dragged', { segmentGroup: segmentGroup, isInHandle: true });
         }
       }
+      if (neighbours.left) {
+        neighbours.left.isSegmentTouching =
+          Utils.timesEqualInHundreths(neighbours.left.segment.endTime, segment.startTime);
+        self._renderSegmentGroup(neighbours.left);
+      }
     }
     else if (endHandle.isMouseDragging) {
-      if (x <= this._view.getWidth()) {
+      if (x <= this._view.getWidth() && mouseMoved) {
         var outOffset = frameStartOffset + x + endHandle.width() - endHandle.mouseStartDiffX;
 
         newTime = this._view.pixelsToTime(outOffset);
@@ -543,21 +547,19 @@ define([
         if (newTime <= segment.startTime + minSegmentDuration) {
           newTime = segment.startTime + minSegmentDuration;
         }
-        else if (neighbours.right) {
-          if (neighbours.right.segment.startTime <= Math.round(newTime * 100) / 100) {
-            neighbours.right.isSegmentTouching = true;
-            self._renderSegmentGroup(neighbours.right);
-            newTime = neighbours.right.segment.startTime;
-          }
-          else {
-            neighbours.right.isSegmentTouching = false;
-          }
+        else if (neighbours.right && neighbours.right.segment.startTime <= newTime) {
+          newTime = neighbours.right.segment.startTime;
         }
 
-        if (newTime !== segment.startTime) {
+        if (newTime !== segment.endTime) {
           segment.endTime = newTime;
           self._peaks.emit('segments.dragged', { segmentGroup: segmentGroup });
         }
+      }
+      if (neighbours.right) {
+        neighbours.right.isSegmentTouching =
+          Utils.timesEqualInHundreths(neighbours.right.segment.startTime, segment.endTime);
+        self._renderSegmentGroup(neighbours.right);
       }
     }
 
