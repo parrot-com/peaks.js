@@ -13,9 +13,6 @@ define([
   'peaks/views/points-layer',
   'peaks/views/segments-layer',
   'peaks/views/waveform-shape',
-  'peaks/views/helpers/mousedraghandler',
-  'peaks/views/zooms/animated',
-  'peaks/views/zooms/static',
   'konva'
   ], function(
     WaveformAxis,
@@ -24,9 +21,6 @@ define([
     PointsLayer,
     SegmentsLayer,
     WaveformShape,
-    MouseDragHandler,
-    AnimatedZoomAdapter,
-    StaticZoomAdapter,
     Konva) {
   'use strict';
 
@@ -62,6 +56,7 @@ define([
     self._height = container.clientHeight || self._options.height;
     self._amplitudeScale = 1;
     self._isCmdModifier = false;
+    self._isMouseOver = false;
 
     // The pixel offset of the current frame being displayed
     self._frameOffset = 0;
@@ -144,6 +139,14 @@ define([
       }
     });
 
+    self._container.addEventListener('mouseenter', function() {
+      self._isMouseOver = true;
+    });
+
+    self._container.addEventListener('mouseleave', function() {
+      self._isMouseOver = false;
+    });
+
     /* self._mouseDragHandler = new MouseDragHandler(self._stage, {
       onMouseDown: function(mousePosX) {
         self._stage.listening(false);
@@ -200,7 +203,7 @@ define([
       //   return;
       // }
 
-      self._syncPlayhead(time);
+      self._syncPlayhead(time, !self._isMouseOver);
     });
 
     self._peaks.on('user_seek', function(time) {
@@ -281,27 +284,29 @@ define([
     // Don't update the UI here, call setZoom().
   };
 
-  WaveformZoomView.prototype._syncPlayhead = function(time) {
+  WaveformZoomView.prototype._syncPlayhead = function(time, scroll) {
     this._playheadLayer.updatePlayheadTime(time);
 
-    var pixelIndex = this.timeToPixels(time);
+    if (scroll) {
+      var pixelIndex = this.timeToPixels(time);
 
-    // Check for the playhead reaching the right-hand side of the window.
+      // Check for the playhead reaching the right-hand side of the window.
 
-    // TODO: move this code to animation function?
-    // TODO: don't scroll if user has positioned view manually (e.g., using
-    // the keyboard)
-    var endThreshold = this._frameOffset + this._width - 100;
+      // TODO: move this code to animation function?
+      // TODO: don't scroll if user has positioned view manually (e.g., using
+      // the keyboard)
+      var endThreshold = this._frameOffset + this._width - 100;
 
-    if (pixelIndex >= endThreshold || pixelIndex < this._frameOffset) {
-      // Put the playhead at 100 pixels from the left edge
-      this._frameOffset = pixelIndex - 100;
+      if (pixelIndex >= endThreshold || pixelIndex < this._frameOffset) {
+        // Put the playhead at 100 pixels from the left edge
+        this._frameOffset = pixelIndex - 100;
 
-      if (this._frameOffset < 0) {
-        this._frameOffset = 0;
+        if (this._frameOffset < 0) {
+          this._frameOffset = 0;
+        }
+
+        this._updateWaveform(this._frameOffset);
       }
-
-      this._updateWaveform(this._frameOffset);
     }
   };
 
